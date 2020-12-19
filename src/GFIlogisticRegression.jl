@@ -3,6 +3,7 @@ module GFIlogisticRegression
 import Junuran
 import Polyhedra
 import LinearAlgebra
+import Distributions
 
 function logit(u) # = qlogis
   return log(u / (1-u))
@@ -58,6 +59,23 @@ function rcd(n, P, b, B)
   return map(logit, sims)
 end
 
+function orth(A)
+  if (isempty(A))
+    retval = []
+  else
+    (U, S, V) = LinearAlgebra.svd(A)
+    (rows, cols) = size(A)
+    tol = maximum(size(A)) * S[1] * eps()
+    r = sum(S .> tol)
+    if (r > 0)
+      retval = -U[:, 1:r]
+    else
+      retval = zeros(rows, 0)
+    end
+  end
+  return (retval)
+end
+
 function fidSampleLR(y, X, N, thresh = N/2)
   (n, p) = size(X)
   weight = ones(n, N)
@@ -77,24 +95,26 @@ function fidSampleLR(y, X, N, thresh = N/2)
       rk += 1
     end
   end
-  Xstart = convert(Array{Rational{BigInt},2}, X[Kstart, 1:end])
+  Xstart = X[Kstart, :]
+  qXstart = convert(Array{Rational{BigInt},2}, Xstart)
   ystart = y[Kstart]
   K = setdiff(1:n, Kstart)
-  XK = convert(Array{Rational{BigInt},2}, X[K, 1:end])
+  XK = X[K, :]
+  qXK = convert(Array{Rational{BigInt},2}, XK)
   yK = y[K]
   # t = 1 to p ####
   At = Array{Float64}(undef, p, N)
   for i in 1:N
     a = map(logit, rand(p))
-    At[1:end, i] = a
+    At[:, i] = a
     C = Array{Rational{BigInt},2}(undef, p, p)
     c = Vector{Rational{BigInt}}(undef, p)
     for j in 1:p
       if ystart[j] == 0
-        C[j, 1:end] = Xstart[j, 1:end]
+        C[j, 1:end] = qXstart[j, :]
         c[j] = convert(Rational{BigInt}, a[j])
       else
-        C[j, 1:end] = -Xstart[j, 1:end]
+        C[j, 1:end] = -qXstart[j, :]
         c[j] = convert(Rational{BigInt}, -a[j])
       end
     end
@@ -104,29 +124,43 @@ function fidSampleLR(y, X, N, thresh = N/2)
   # t from p+1 to n ####
   for t in 1:(n-p)
     At = vcat(At, Array{Float64,2}(undef, 1, N))
-    Xt = XK[t, 1:end]
+    qXt = qXK[t, 1:end]
     for i in 1:N
       H = Polyhedra.hrep(CC[i], cc[i])
       plyhdrn = Polyhedra.polyhedron(H)
       pts = collect(Polyhedra.points(plyhdrn))
       if yK[t] == 0
-        MIN = convert(Float64, minimum(LinearAlgebra.transpose(Xt) * hcat(pts...)))
+        MIN = convert(
+          Float64, minimum(LinearAlgebra.transpose(qXt) * hcat(pts...))
+        )
         atilde = rtlogis2(MIN)
         weight[t, i] = 1 - expit(MIN)
-        CC[i] = vcat(CC[i], reshape(Xt, 1, :))
+        CC[i] = vcat(CC[i], reshape(qXt, 1, :))
         cc[i] = vcat(cc[i], convert(Rational{BigInt}, atilde))
       else
-        MAX = convert(Float64, maximum(LinearAlgebra.transpose(Xt) * hcat(pts...)))
+        MAX = convert(
+          Float64, maximum(LinearAlgebra.transpose(qXt) * hcat(pts...))
+        )
         atilde = rtlogis1(MAX)
         weight[t, i] = expit(MAX)
-        CC[i] = vcat(CC[i], reshape(-Xt, 1, :))
+        CC[i] = vcat(CC[i], reshape(-qXt, 1, :))
         cc[i] = vcat(cc[i], convert(Rational{BigInt}, -atilde))
       end
       At[p+t, i] = atilde
     end
     WT = prod(weight; dims = 1)[1, 1:end]
     WTnorm = WT ./ sum(WT)
-    ESS[p+t] = 1 / sum(WTnorm .* WTnorm)
+    ESS[p+t] = 1.0 / sum(WTnorm .* WTnorm)
+    if ESS[p+t] < thresh || t == n-p
+      Nsons = rand(Multinomial(N, WTnorm))
+      counter = 1
+      At_new = Array{Float64, 2}(undef, p+t, 0)
+      D = vcat(Xstart, XK[1:t, :])
+      P = orth(D)
+      Pt = LinearAlgebra.transpose(P)
+      QQt = LinearAlgebra.I - P*Pt
+      M = inv(LinearAlgebra.transpose(D)*D) * LinearAlgebra.transpose(D) * P
+      
   end
   return ESS
 end # fidSampleLR
