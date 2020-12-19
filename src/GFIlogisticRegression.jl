@@ -60,6 +60,11 @@ end
 
 function fidSampleLR(y, X, N, thresh = N/2)
   (n, p) = size(X)
+  weight = ones(n, N)
+  ESS = N .* ones(n)
+#  H = Vector{Polyhedra.MixedMatHRep{Rational{BigInt}{Int64},Array{Rational{BigInt}{Int64},2}}}(undef, N)
+  CC = Vector{Array{Rational{BigInt},2}}(undef, N)
+  cc = Vector{Vector{Rational{BigInt}}}(undef, N)
   # Kstart ####
   Kstart = [1]
   i = 1
@@ -72,17 +77,58 @@ function fidSampleLR(y, X, N, thresh = N/2)
       rk += 1
     end
   end
-  Xstart = X[Kstart, 1:end]
+  Xstart = convert(Array{Rational{BigInt},2}, X[Kstart, 1:end])
   ystart = y[Kstart]
   K = setdiff(1:n, Kstart)
-  XK = X[K, 1:end]
+  XK = convert(Array{Rational{BigInt},2}, X[K, 1:end])
   yK = y[K]
   # t = 1 to p ####
-  At = Array{Float64}(undef, p, n)
+  At = Array{Float64}(undef, p, N)
   for i in 1:N
-
+    a = map(logit, rand(p))
+    At[1:end, i] = a
+    C = Array{Rational{BigInt},2}(undef, p, p)
+    c = Vector{Rational{BigInt}}(undef, p)
+    for j in 1:p
+      if ystart[j] == 0
+        C[j, 1:end] = Xstart[j, 1:end]
+        c[j] = convert(Rational{BigInt}, a[j])
+      else
+        C[j, 1:end] = -Xstart[j, 1:end]
+        c[j] = convert(Rational{BigInt}, -a[j])
+      end
+    end
+    CC[i] = C
+    cc[i] = c
   end
-
+  # t from p+1 to n ####
+  for t in 1:(n-p)
+    At = vcat(At, Array{Float64,2}(undef, 1, N))
+    Xt = XK[t, 1:end]
+    for i in 1:N
+      H = Polyhedra.hrep(CC[i], cc[i])
+      plyhdrn = Polyhedra.polyhedron(H)
+      pts = collect(Polyhedra.points(plyhdrn))
+      if yK[t] == 0
+        MIN = convert(Float64, minimum(LinearAlgebra.transpose(Xt) * hcat(pts...)))
+        atilde = rtlogis2(MIN)
+        weight[t, i] = 1 - expit(MIN)
+        CC[i] = vcat(CC[i], reshape(Xt, 1, :))
+        cc[i] = vcat(cc[i], convert(Rational{BigInt}, atilde))
+      else
+        MAX = convert(Float64, maximum(LinearAlgebra.transpose(Xt) * hcat(pts...)))
+        atilde = rtlogis1(MAX)
+        weight[t, i] = expit(MAX)
+        CC[i] = vcat(CC[i], reshape(-Xt, 1, :))
+        cc[i] = vcat(cc[i], convert(Rational{BigInt}, -atilde))
+      end
+      At[p+t, i] = atilde
+    end
+    WT = prod(weight; dims = 1)[1, 1:end]
+    WTnorm = WT ./ sum(WT)
+    ESS[p+t] = 1 / sum(WTnorm .* WTnorm)
+  end
+  return ESS
 end # fidSampleLR
 
 end # module
