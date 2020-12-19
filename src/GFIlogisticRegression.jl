@@ -160,7 +160,49 @@ function fidSampleLR(y, X, N, thresh = N/2)
       Pt = LinearAlgebra.transpose(P)
       QQt = LinearAlgebra.I - P*Pt
       M = inv(LinearAlgebra.transpose(D)*D) * LinearAlgebra.transpose(D) * P
-      
+      CCtemp = Vector{Array{Rational{BigInt},2}}(undef, N)
+      cctemp = Vector{Vector{Rational{BigInt}}}(undef, N)
+      for i in 1:N
+        ncopies = Nsons[i]
+        if ncopies >= 1
+          CCtemp[counter] = CC[i]
+          cctemp[counter] = cc[i]
+          At_new = vcat(AT_new, At[:, i])
+          if ncopies > 1
+            H = Polyhedra.hrep(CC[i], cc[i])
+            plyhdrn = Polyhedra.polyhedron(H)
+            pts = collect(Polyhedra.points(plyhdrn))
+            lns = collect(Polyhedra.lines(plyhdrn))
+            rys = collect(Polyhedra.rays(plyhdrn))
+            b = QQt * At[:, i]
+            B = Pt * At[:, i]
+            BTILDES = rcd(ncopies-1, P, b, B)
+            for j in 2:ncopies
+              VT_new = Vector{Vector{Float64}}(undef, length(pts))
+              Btilde = BTILDES[j-1]
+              At_tilde = P * Btilde + b
+              At_new = vcat(AT_new, At_tilde)
+              for k in 1:length(pts)
+                pt = convert(Vector{Float64}, pts[k])
+                VT_new[k] =
+                  convert(Vector{Rational{BigInt}}, pt .- M * (B .- Btilde))
+              end
+              V = Polyhedra.vrep(VT_new, lns, rys)
+              plyhdrn = Polyhedra.polyhedron(V)
+              H = plyhdrn.hrep
+              CCtemp[counter + j - 1] = H.A
+              cctemp[counter + j - 1] = H.b
+            end
+          end
+          counter += ncopies
+        end
+      end
+      CC = CCtemp
+      cc = cctemp
+      At = At_new
+      if t < n-p
+        weight = ones(n, N)
+    end
   end
   return ESS
 end # fidSampleLR
