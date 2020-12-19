@@ -2,6 +2,7 @@ module GFIlogisticRegression
 
 import Junuran
 import Polyhedra
+import LinearAlgebra
 
 function logit(u) # = qlogis
   return log(u / (1-u))
@@ -56,5 +57,32 @@ function rcd(n, P, b, B)
   sims = Junuran.ursample(gen, n)
   return map(logit, sims)
 end
+
+function fidSampleLR(y, X, N, thresh = N/2)
+  (n, p) = size(X)
+  # Kstart ####
+  Kstart = [1]
+  i = 1
+  rk = 1
+  while rk < p
+    i += 1
+    Kstart_plus_i = vcat(Kstart, i)
+    if LinearAlgebra.rank(X[Kstart_plus_i, 1:end]) == rk + 1
+      Kstart = Kstart_plus_i
+      rk += 1
+    end
+  end
+  Xstart = X[Kstart, 1:end]
+  ystart = y[Kstart]
+  K = setdiff(1:n, Kstart)
+  XK = X[K, 1:end]
+  yK = y[K]
+  # t = 1 to p ####
+  At = Array{Float64}(undef, p, n)
+  for i in 1:N
+
+  end
+
+end # fidSampleLR
 
 end # module

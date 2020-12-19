@@ -6,5 +6,6 @@ version = "0.1.0"
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Junuran = "80bbfaa5-02cd-4f99-8920-85485aa13291"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
 StatsModels = "3eaba693-59b7-5ba5-a881-562e759f1c8d"
