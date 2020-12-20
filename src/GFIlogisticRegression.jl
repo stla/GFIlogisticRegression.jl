@@ -82,7 +82,6 @@ function fidSampleLR(y, X, N, thresh = N/2)
   weight = ones(n, N)
   local WTnorm
   ESS = N .* ones(n)
-#  H = Vector{Polyhedra.MixedMatHRep{Rational{BigInt}{Int64},Array{Rational{BigInt}{Int64},2}}}(undef, N)
   CC = Vector{Array{Rational{BigInt},2}}(undef, N)
   cc = Vector{Vector{Rational{BigInt}}}(undef, N)
   # Kstart ####
@@ -92,72 +91,74 @@ function fidSampleLR(y, X, N, thresh = N/2)
   while rk < p
     i += 1
     Kstart_plus_i = vcat(Kstart, i)
-    if LinearAlgebra.rank(X[Kstart_plus_i, 1:end]) == rk + 1
+    if LinearAlgebra.rank(X[Kstart_plus_i, :]) == rk + 1
       Kstart = Kstart_plus_i
       rk += 1
     end
   end
-  Xstart = X[Kstart, :]
+  @inbounds Xstart = X[Kstart, :]
   qXstart = convert(Array{Rational{BigInt},2}, Xstart)
   ystart = y[Kstart]
   K = setdiff(1:n, Kstart)
-  XK = X[K, :]
+  @inbounds XK = X[K, :]
   qXK = convert(Array{Rational{BigInt},2}, XK)
-  yK = y[K]
+  @inbounds yK = y[K]
   # t = 1 to p ####
   At = Array{Float64}(undef, p, N)
   for i in 1:N
     a = map(logit, rand(p))
-    At[:, i] = a
+    @inbounds At[:, i] = a
     C = Array{Rational{BigInt},2}(undef, p, p)
     c = Vector{Rational{BigInt}}(undef, p)
     for j in 1:p
-      if ystart[j] == 0
-        C[j, 1:end] = qXstart[j, :]
-        c[j] = convert(Rational{BigInt}, a[j])
+      @inbounds if ystart[j] == 0
+        @inbounds C[j, :] = qXstart[j, :]
+        @inbounds c[j] = convert(Rational{BigInt}, a[j])
       else
-        C[j, 1:end] = -qXstart[j, :]
-        c[j] = convert(Rational{BigInt}, -a[j])
+        @inbounds C[j, :] = -qXstart[j, :]
+        @inbounds c[j] = convert(Rational{BigInt}, -a[j])
       end
     end
-    CC[i] = C
-    cc[i] = c
+    @inbounds CC[i] = C
+    @inbounds cc[i] = c
   end
   # t from p+1 to n ####
   for t in 1:(n-p)
     At = vcat(At, Array{Float64,2}(undef, 1, N))
-    qXt = qXK[t, 1:end]
+    @inbounds qXt = qXK[t, :]
+    qXt_row = reshape(qXt, 1, :)
+    qXtt = LinearAlgebra.transpose(qXt)
     for i in 1:N
-      H = Polyhedra.hrep(CC[i], cc[i])
+      @inbounds H = Polyhedra.hrep(CC[i], cc[i])
       plyhdrn = Polyhedra.polyhedron(H)
       pts = collect(Polyhedra.points(plyhdrn))
-      if yK[t] == 0
+      @inbounds if yK[t] == 0
         MIN = convert(
-          Float64, minimum(LinearAlgebra.transpose(qXt) * hcat(pts...))
+          Float64, minimum(qXtt * hcat(pts...))
         )
         atilde = rtlogis2(MIN)
-        weight[t, i] = 1 - expit(MIN)
-        CC[i] = vcat(CC[i], reshape(qXt, 1, :))
-        cc[i] = vcat(cc[i], convert(Rational{BigInt}, atilde))
+        @inbounds weight[t, i] = 1 - expit(MIN)
+        @inbounds CC[i] = vcat(CC[i], qXt_row)
+        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, atilde))
       else
         MAX = convert(
-          Float64, maximum(LinearAlgebra.transpose(qXt) * hcat(pts...))
+          Float64, maximum(qXtt * hcat(pts...))
         )
         atilde = rtlogis1(MAX)
-        weight[t, i] = expit(MAX)
-        CC[i] = vcat(CC[i], reshape(-qXt, 1, :))
-        cc[i] = vcat(cc[i], convert(Rational{BigInt}, -atilde))
+        @inbounds weight[t, i] = expit(MAX)
+        @inbounds CC[i] = vcat(CC[i], -qXt_row)
+        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, -atilde))
       end
-      At[p+t, i] = atilde
+      @inbounds At[p+t, i] = atilde
     end
-    WT = prod(weight; dims = 1)[1, 1:end]
+    WT = prod(weight; dims = 1)[1, :]
     WTnorm = WT ./ sum(WT)
-    ESS[p+t] = 1.0 / sum(WTnorm .* WTnorm)
-    if ESS[p+t] < thresh || t == n-p
+    @inbounds ESS[p+t] = 1.0 / sum(WTnorm .* WTnorm)
+    @inbounds if ESS[p+t] < thresh || t == n-p
       Nsons = rand(Distributions.Multinomial(N, WTnorm))
       counter = 1
       At_new = Array{Float64, 2}(undef, p+t, 0)
-      D = vcat(Xstart, XK[1:t, :])
+      @inbounds D = vcat(Xstart, XK[1:t, :])
       P = orth(D)
       Pt = LinearAlgebra.transpose(P)
       QQt = LinearAlgebra.I - P*Pt
@@ -165,23 +166,23 @@ function fidSampleLR(y, X, N, thresh = N/2)
       CCtemp = Vector{Array{Rational{BigInt},2}}(undef, N)
       cctemp = Vector{Vector{Rational{BigInt}}}(undef, N)
       for i in 1:N
-        ncopies = Nsons[i]
+        @inbounds ncopies = Nsons[i]
         if ncopies >= 1
-          CCtemp[counter] = CC[i]
-          cctemp[counter] = cc[i]
-          At_new = hcat(At_new, At[:, i])
+          @inbounds CCtemp[counter] = CC[i]
+          @inbounds cctemp[counter] = cc[i]
+          @inbounds At_new = hcat(At_new, At[:, i])
           if ncopies > 1
-            H = Polyhedra.hrep(CC[i], cc[i])
+            @inbounds H = Polyhedra.hrep(CC[i], cc[i])
             plyhdrn = Polyhedra.polyhedron(H)
             pts = collect(Polyhedra.points(plyhdrn))
             lns = collect(Polyhedra.lines(plyhdrn))
             rys = collect(Polyhedra.rays(plyhdrn))
-            b = QQt * At[:, i]
-            B = Pt * At[:, i]
+            @inbounds b = QQt * At[:, i]
+            @inbounds B = Pt * At[:, i]
             BTILDES = rcd(ncopies-1, P, b, B)
             for j in 2:ncopies
               VT_new = Vector{Vector{Rational{BigInt}}}(undef, length(pts))
-              Btilde = BTILDES[j-1]
+              @inbounds Btilde = BTILDES[j-1]
               At_tilde = P * Btilde .+ b
               At_new = hcat(At_new, At_tilde)
               for k in 1:length(pts)
@@ -193,8 +194,8 @@ function fidSampleLR(y, X, N, thresh = N/2)
               plyhdrn = Polyhedra.polyhedron(V)
               HlfSpcs = Polyhedra.hrep(plyhdrn).halfspaces
               A = map(x -> x.a, HlfSpcs)
-              CCtemp[counter + j - 1] = LinearAlgebra.transpose(hcat(A...))
-              cctemp[counter + j - 1] = map(x -> x.β, HlfSpcs)
+              @inbounds CCtemp[counter + j - 1] = LinearAlgebra.transpose(hcat(A...))
+              @inbounds cctemp[counter + j - 1] = map(x -> x.β, HlfSpcs)
             end
           end
           counter += ncopies
@@ -210,15 +211,15 @@ function fidSampleLR(y, X, N, thresh = N/2)
   end
   Beta = Array{Float64, 2}(undef, N, p)
   for i in 1:N
-    H = Polyhedra.hrep(CC[i], cc[i])
+    @inbounds H = Polyhedra.hrep(CC[i], cc[i])
     plyhdr = Polyhedra.polyhedron(H)
     vertices = collect(Polyhedra.points(plyhdr))
     pts = hcat(vertices...)
     for j in 1:p
       if rand() < 0.5
-        Beta[i, j] = minimum(pts[j, :])
+        @inbounds Beta[i, j] = minimum(pts[j, :])
       else
-        Beta[i, j] = maximum(pts[j, :])
+        @inbounds Beta[i, j] = maximum(pts[j, :])
       end
     end
   end
@@ -228,6 +229,9 @@ end # fidSampleLR
 #end # module
 
 
-y = [0, 0, 1, 1]
-X = [1 1; 1 2; 1 3; 1 4]
-fidSampleLR(y, X, 10)
+y = [0, 0, 1, 1, 1]
+X = [1 -2; 1 -1; 1 0; 1 1; 1 2]
+fidsamples = fidSampleLR(y, X, 1000)
+
+println(sum(fidsamples.Beta[:, 1] .* fidsamples.Weights))
+println(sum(fidsamples.Beta[:, 2] .* fidsamples.Weights))
