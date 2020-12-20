@@ -1,9 +1,10 @@
-module GFIlogisticRegression
+#module GFIlogisticRegression
 
 import Junuran
 import Polyhedra
 import LinearAlgebra
 import Distributions
+import Optim
 
 function logit(u) # = qlogis
   return log(u / (1-u))
@@ -56,7 +57,7 @@ function rcd(n, P, b, B)
   ctr = map(expit, B)
   gen = Junuran.urgen_vnrou(d, pdf, ctr, nothing, zeros(d), ones(d))
   sims = Junuran.ursample(gen, n)
-  return map(logit, sims)
+  return map(x -> map(logit, x), sims)
 end
 
 function orth(A)
@@ -152,7 +153,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
     WTnorm = WT ./ sum(WT)
     ESS[p+t] = 1.0 / sum(WTnorm .* WTnorm)
     if ESS[p+t] < thresh || t == n-p
-      Nsons = rand(Multinomial(N, WTnorm))
+      Nsons = rand(Distributions.Multinomial(N, WTnorm))
       counter = 1
       At_new = Array{Float64, 2}(undef, p+t, 0)
       D = vcat(Xstart, XK[1:t, :])
@@ -167,7 +168,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
         if ncopies >= 1
           CCtemp[counter] = CC[i]
           cctemp[counter] = cc[i]
-          At_new = vcat(AT_new, At[:, i])
+          At_new = hcat(At_new, At[:, i])
           if ncopies > 1
             H = Polyhedra.hrep(CC[i], cc[i])
             plyhdrn = Polyhedra.polyhedron(H)
@@ -176,12 +177,15 @@ function fidSampleLR(y, X, N, thresh = N/2)
             rys = collect(Polyhedra.rays(plyhdrn))
             b = QQt * At[:, i]
             B = Pt * At[:, i]
+            println(P)
+            println(b)
+            println(B)
             BTILDES = rcd(ncopies-1, P, b, B)
             for j in 2:ncopies
-              VT_new = Vector{Vector{Float64}}(undef, length(pts))
+              VT_new = Vector{Vector{Rational{BigInt}}}(undef, length(pts))
               Btilde = BTILDES[j-1]
-              At_tilde = P * Btilde + b
-              At_new = vcat(AT_new, At_tilde)
+              At_tilde = P * Btilde .+ b
+              At_new = hcat(At_new, At_tilde)
               for k in 1:length(pts)
                 pt = convert(Vector{Float64}, pts[k])
                 VT_new[k] =
@@ -189,9 +193,10 @@ function fidSampleLR(y, X, N, thresh = N/2)
               end
               V = Polyhedra.vrep(VT_new, lns, rys)
               plyhdrn = Polyhedra.polyhedron(V)
-              H = plyhdrn.hrep
-              CCtemp[counter + j - 1] = H.A
-              cctemp[counter + j - 1] = H.b
+              HlfSpcs = Polyhedra.hrep(plyhdrn).halfspaces
+              A = map(x -> x.a, HlfSpcs)
+              CCtemp[counter + j - 1] = LinearAlgebra.transpose(hcat(A...))
+              cctemp[counter + j - 1] = map(x -> x.β, HlfSpcs)
             end
           end
           counter += ncopies
@@ -202,9 +207,15 @@ function fidSampleLR(y, X, N, thresh = N/2)
       At = At_new
       if t < n-p
         weight = ones(n, N)
+      end
     end
   end
   return ESS
 end # fidSampleLR
 
-end # module
+#end # module
+
+
+y = [0, 0, 1, 1]
+X = [1 1; 1 2; 1 3; 1 4]
+fidSampleLR(y, X, 10)
