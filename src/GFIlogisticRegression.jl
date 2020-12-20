@@ -159,7 +159,8 @@ function fidSampleLR(y, X, N, thresh = N/2)
       counter = 1
       At_new = Array{Float64, 2}(undef, p+t, 0)
       @inbounds D = vcat(Xstart, XK[1:t, :])
-      P = orth(D)
+      QR = LinearAlgebra.qr(D)
+      @inbounds P = QR.Q[:, 1:p]#orth(D)
       Pt = LinearAlgebra.transpose(P)
       QQt = LinearAlgebra.I - P*Pt
       M = inv(LinearAlgebra.transpose(D)*D) * LinearAlgebra.transpose(D) * P
@@ -231,7 +232,18 @@ end # fidSampleLR
 
 y = [0, 0, 1, 1, 1]
 X = [1 -2; 1 -1; 1 0; 1 1; 1 2]
-fidsamples = fidSampleLR(y, X, 1000)
+fidsamples = fidSampleLR(y, X, 5000)
 
+using StatsBase
+
+println("beta1:")
 println(sum(fidsamples.Beta[:, 1] .* fidsamples.Weights))
+println(
+  quantile(fidsamples.Beta[:, 1], weights(fidsamples.Weights), [0.025,0.975])
+)
+
+println("beta2:")
 println(sum(fidsamples.Beta[:, 2] .* fidsamples.Weights))
+println(
+  quantile(fidsamples.Beta[:, 2], weights(fidsamples.Weights), [0.025,0.975])
+)
