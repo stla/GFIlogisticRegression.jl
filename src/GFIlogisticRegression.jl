@@ -80,6 +80,7 @@ end
 function fidSampleLR(y, X, N, thresh = N/2)
   (n, p) = size(X)
   weight = ones(n, N)
+  local WTnorm
   ESS = N .* ones(n)
 #  H = Vector{Polyhedra.MixedMatHRep{Rational{BigInt}{Int64},Array{Rational{BigInt}{Int64},2}}}(undef, N)
   CC = Vector{Array{Rational{BigInt},2}}(undef, N)
@@ -177,9 +178,6 @@ function fidSampleLR(y, X, N, thresh = N/2)
             rys = collect(Polyhedra.rays(plyhdrn))
             b = QQt * At[:, i]
             B = Pt * At[:, i]
-            println(P)
-            println(b)
-            println(B)
             BTILDES = rcd(ncopies-1, P, b, B)
             for j in 2:ncopies
               VT_new = Vector{Vector{Rational{BigInt}}}(undef, length(pts))
@@ -210,7 +208,21 @@ function fidSampleLR(y, X, N, thresh = N/2)
       end
     end
   end
-  return ESS
+  Beta = Array{Float64, 2}(undef, N, p)
+  for i in 1:N
+    H = Polyhedra.hrep(CC[i], cc[i])
+    plyhdr = Polyhedra.polyhedron(H)
+    vertices = collect(Polyhedra.points(plyhdr))
+    pts = hcat(vertices...)
+    for j in 1:p
+      if rand() < 0.5
+        Beta[i, j] = minimum(pts[j, :])
+      else
+        Beta[i, j] = maximum(pts[j, :])
+      end
+    end
+  end
+  return (Beta = Beta, Weights = WTnorm)
 end # fidSampleLR
 
 #end # module
