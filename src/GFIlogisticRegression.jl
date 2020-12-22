@@ -96,8 +96,8 @@ function get_umax0(P, b)
   upper = 1.0 .- lower
   init = 0.5 * ones(d)
   od = Optim.OnceDifferentiable(fn, grfn!, init)
-  results = optimize(
-    od, init, lower, upper, Optim.Fminbox{Optim.GradientDescent}()
+  results = Optim.optimize(
+    od, lower, upper, init, Optim.Fminbox(Optim.GradientDescent())
   )
   return results
 end
