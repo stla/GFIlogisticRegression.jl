@@ -44,8 +44,41 @@ end
 
 function dlogis(x)
   exp_x = exp(x)
-  exp_x / (1+exp_x) / (1+exp_x)
+  return exp_x / (1+exp_x) / (1+exp_x)
 end
+
+function dlogit(u)
+  return 1.0 / (u * (1.0 - u))
+end
+
+function ldlogit(U)
+  return map(u -> -log(u * (1.0-u)), U)
+end
+
+function ldlogis(X)
+  return X - 2.0 * map(x -> log1p(exp(x)), X)
+end
+
+function dldlogis(X)
+  return 1.0 .- 2.0 ./ (1.0 .+ map(exp, -X))
+end
+
+function log_f(u, P, b)
+  x = P * map(logit, u) + b;
+  return sum(ldlogis(x)) + sum(ldlogit(u))
+end
+
+function dlog_f(ui, Pi, y)
+  return dlogit(ui) * sum(Pi .* y) + (2.0 * ui - 1.0) / (ui * (1.0 - ui))
+end
+
+P = [
+  -0.82 -0.18;
+  -0.41 -0.37;
+  0.0   -0.55;
+  0.41  -0.73
+]
+b = [-0.50; 1.58; -1.66; 0.58]
 
 function rcd(n, P, b, B)
   d = length(B)
@@ -233,7 +266,7 @@ end # fidSampleLR
 
 y = [0, 0, 1, 1, 1]
 X = [1 -2; 1 -1; 1 0; 1 1; 1 2]
-fidsamples = fidSampleLR(y, X, 5000)
+fidsamples = fidSampleLR(y, X, 500)
 
 using StatsBase
 
