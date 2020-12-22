@@ -118,6 +118,79 @@ function get_umax(P, b)
   )
 end
 
+function get_vmin_i(P, b, i, mu)
+  d = size(P, 2)
+  fn = function(u)
+    return -log_f(u, P, b) - (d + 2) * log(mu[i] - u[i])
+  end
+  grfn! = function(storage, u)
+    y = dldlogis(P * map(logit, u) .+ b)
+    storage[i] = -dlog_f(u[i], P[:, i], y) + (d+2) / (mu[i] - u[i])
+    others = deleteat!(collect(1:d), i)
+    for j in others
+      storage[j] = -dlog_f(u[j], P[:, j], y)
+    end
+  end
+  eta = sqrt(eps())
+  lower = eta * ones(d)
+  upper = ones(d)
+  upper[i] = mu[i]
+  upper .-= eta
+  init = 0.5 * ones(d)
+  init[i] = mu[i] / 2.0
+  od = Optim.OnceDifferentiable(fn, grfn!, init)
+  opt = Optim.optimize(
+    od, lower, upper, init, Optim.Fminbox(Optim.GradientDescent())
+  )
+  return -exp(-opt.minimum / (d+2))
+end
+
+function get_vmin(P, b, mu)
+  d = size(P, 2)
+  vmin = Vector{Float64}(undef, d)
+  for i in 1:d
+    vmin[i] = get_vmin_i(P, b, i, mu)
+  end
+  return vmin
+end
+
+function get_vmax_i(P, b, i, mu)
+  d = size(P, 2)
+  fn = function(u)
+    return -log_f(u, P, b) - (d + 2) * log(u[i] - mu[i])
+  end
+  grfn! = function(storage, u)
+    y = dldlogis(P * map(logit, u) .+ b)
+    storage[i] = -dlog_f(u[i], P[:, i], y) + (d+2) / (mu[i] - u[i])
+    others = deleteat!(collect(1:d), i)
+    for j in others
+      storage[j] = -dlog_f(u[j], P[:, j], y)
+    end
+  end
+  eta = sqrt(eps())
+  lower = zeros(d)
+  lower[i] = mu[i]
+  lower .+= eta
+  upper = ones(d) .- eta
+  init = 0.5 * ones(d)
+  init[i] = (mu[i] + 1.0) / 2.0
+  od = Optim.OnceDifferentiable(fn, grfn!, init)
+  opt = Optim.optimize(
+    od, lower, upper, init, Optim.Fminbox(Optim.GradientDescent())
+  )
+  return exp(-opt.minimum / (d+2))
+end
+
+function get_vmax(P, b, mu)
+  d = size(P, 2)
+  vmax = Vector{Float64}(undef, d)
+  for i in 1:d
+    vmax[i] = get_vmax_i(P, b, i, mu)
+  end
+  return vmax
+end
+
+
 function rcd(n, P, b, B)
   d = length(B)
   pdf = function(u)
