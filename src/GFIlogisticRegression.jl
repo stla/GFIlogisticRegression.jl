@@ -80,6 +80,31 @@ P = [
 ]
 b = [-0.50; 1.58; -1.66; 0.58]
 
+function get_umax0(P, b)
+  d = size(P, 2)
+  fn = function(u)
+    return -log_f(u, P, b)
+  end
+  grfn! = function(storage, u)
+    y = dldlogis(P * map(logit, u) .+ b)
+    for i in 1:d
+      storage[i] = -dlog_f(u[i], P[:, i], y)
+    end
+  end
+  eta = sqrt(eps())
+  lower = eta * ones(d)
+  upper = 1.0 .- lower
+  init = 0.5 * ones(d)
+  od = Optim.OnceDifferentiable(fn, grfn!, init)
+  results = optimize(
+    od, init, lower, upper, Optim.Fminbox{Optim.GradientDescent}()
+  )
+  return results
+end
+
+
+
+
 function rcd(n, P, b, B)
   d = length(B)
   pdf = function(u)
