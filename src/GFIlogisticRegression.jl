@@ -1,6 +1,5 @@
 #module GFIlogisticRegression
 
-import Junuran
 import Polyhedra
 import CDDLib
 import LinearAlgebra
