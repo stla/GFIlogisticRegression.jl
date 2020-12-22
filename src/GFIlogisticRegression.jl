@@ -190,21 +190,34 @@ function get_vmax(P, b, mu)
   return vmax
 end
 
-
-function rcd(n, P, b, B)
-  d = length(B)
-  pdf = function(u)
-    logit_u = map(log, u ./ (1 .- u))
-    dlogit_u = 1 ./ (u .* (1 .- u))
-    x = map(dlogis, P * logit_u + b)
-    return prod(x) * prod(dlogit_u)
-  end
-  ctr = map(expit, B)
-  gen = Junuran.urgen_vnrou(d, pdf, ctr, nothing, zeros(d), ones(d))
-  sims = Junuran.ursample(gen, n)
-  return map(x -> map(logit, x), sims)
+function get_bounds(P, b)
+  (mu, umax) = get_umax(P, b)
+  return (
+    mu = mu,
+    umax = umax,
+    vmin = get_vmin(P, b, mu),
+    vmax = get_vmax(P, b, mu)
+  )
 end
 
+function rcd(n, P, b)
+  d = size(P, 2)
+  sims = Vector{Vector{Float64}}(undef, n)
+  (mu, umax, vmin, vmax) = get_bounds(P, b)
+  k = 0
+  while k < n
+    u = umax * rand()
+    v = vmin + (vmax - vmin) .* rand(d)
+    x = v / sqrt(u) + mu
+    if all(x .> 0) && all(x .< 1) && ((d+2) * log(u) < 2.0 * log_f(x, P, b))
+      k += 1
+      sims[k] = map(logit, x)
+    end
+  end
+  return sims
+end
+
+#=
 function orth(A)
   if (isempty(A))
     retval = []
@@ -221,6 +234,7 @@ function orth(A)
   end
   return (retval)
 end
+=#
 
 function fidSampleLR(y, X, N, thresh = N/2)
   (n, p) = size(X)
@@ -325,7 +339,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
             rys = collect(Polyhedra.rays(plyhdrn))
             @inbounds b = QQt * At[:, i]
             @inbounds B = Pt * At[:, i]
-            BTILDES = rcd(ncopies-1, P, b, B)
+            BTILDES = rcd(ncopies-1, P, b)
             for j in 2:ncopies
               VT_new = Vector{Vector{Rational{BigInt}}}(undef, length(pts))
               @inbounds Btilde = BTILDES[j-1]
