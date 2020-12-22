@@ -2,6 +2,7 @@
 
 import Junuran
 import Polyhedra
+import CDDLib
 import LinearAlgebra
 import Distributions
 import Optim
@@ -130,7 +131,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
     qXtt = LinearAlgebra.transpose(qXt)
     for i in 1:N
       @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-      plyhdrn = Polyhedra.polyhedron(H)
+      plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
       pts = collect(Polyhedra.points(plyhdrn))
       @inbounds if yK[t] == 0
         MIN = convert(
@@ -174,7 +175,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
           @inbounds At_new = hcat(At_new, At[:, i])
           if ncopies > 1
             @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-            plyhdrn = Polyhedra.polyhedron(H)
+            plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
             pts = collect(Polyhedra.points(plyhdrn))
             lns = collect(Polyhedra.lines(plyhdrn))
             rys = collect(Polyhedra.rays(plyhdrn))
