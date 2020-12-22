@@ -80,7 +80,7 @@ P = [
 ]
 b = [-0.50; 1.58; -1.66; 0.58]
 
-function get_umax0(P, b)
+function get_umax0(P, b, init)
   d = size(P, 2)
   fn = function(u)
     return -log_f(u, P, b)
@@ -94,16 +94,29 @@ function get_umax0(P, b)
   eta = sqrt(eps())
   lower = eta * ones(d)
   upper = 1.0 .- lower
-  init = 0.5 * ones(d)
   od = Optim.OnceDifferentiable(fn, grfn!, init)
   results = Optim.optimize(
     od, lower, upper, init, Optim.Fminbox(Optim.GradientDescent())
   )
-  return results
+  return (results.minimizer, results.minimum)
 end
 
-
-
+function get_umax(P, b)
+  d = size(P, 2)
+  cp = Iterators.product(ntuple(i -> [0.01, 0.5, 0.99], d)...)
+  inits = hcat(map(collect, collect(cp))...)
+  n = size(inits, 2)
+  mins = Vector{Float64}(undef, n)
+  ats = Vector{Vector{Float64}}(undef, n)
+  for i in 1:n
+    (ats[i], mins[i]) = get_umax0(P, b, inits[:, i])
+  end
+  imin = argmin(mins)
+  return (
+    mu = ats[imin],
+    umax = exp(-mins[imin])^(2.0 / (2.0 + d))
+  )
+end
 
 function rcd(n, P, b, B)
   d = length(B)
