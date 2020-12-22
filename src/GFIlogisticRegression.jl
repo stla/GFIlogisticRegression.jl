@@ -1,10 +1,15 @@
-#module GFIlogisticRegression
+module GFIlogisticRegression
 
 import Polyhedra
 import CDDLib
 import LinearAlgebra
 import Distributions
 import Optim
+import StatsBase
+
+export summary
+export fidSampleLR
+
 
 function logit(u) # = qlogis
   return log(u / (1-u))
@@ -282,6 +287,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
   end
   # t from p+1 to n ####
   for t in 1:(n-p)
+    println(t)
     At = vcat(At, Array{Float64,2}(undef, 1, N))
     @inbounds qXt = qXK[t, :]
     qXt_row = reshape(qXt, 1, :)
@@ -313,6 +319,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
     WTnorm = WT ./ sum(WT)
     @inbounds ESS[p+t] = 1.0 / sum(WTnorm .* WTnorm)
     @inbounds if ESS[p+t] < thresh || t == n-p
+      println("alteration...")
       Nsons = rand(Distributions.Multinomial(N, WTnorm))
       counter = 1
       At_new = Array{Float64, 2}(undef, p+t, 0)
@@ -385,23 +392,23 @@ function fidSampleLR(y, X, N, thresh = N/2)
   return (Beta = Beta, Weights = WTnorm)
 end # fidSampleLR
 
-#end # module
+function summary(fidsamples)
+  println("beta1:")
+  println(sum(fidsamples.Beta[:, 1] .* fidsamples.Weights))
+  println(
+    StatsBase.quantile(fidsamples.Beta[:, 1], StatsBase.weights(fidsamples.Weights), [0.025,0.975])
+  )
+  println("beta2:")
+  println(sum(fidsamples.Beta[:, 2] .* fidsamples.Weights))
+  println(
+    StatsBase.quantile(fidsamples.Beta[:, 2], StatsBase.weights(fidsamples.Weights), [0.025,0.975])
+  )
+end
 
+end # module
 
+#=
 y = [0, 0, 1, 1, 1]
 X = [1 -2; 1 -1; 1 0; 1 1; 1 2]
-fidsamples = fidSampleLR(y, X, 500)
-
-using StatsBase
-
-println("beta1:")
-println(sum(fidsamples.Beta[:, 1] .* fidsamples.Weights))
-println(
-  quantile(fidsamples.Beta[:, 1], weights(fidsamples.Weights), [0.025,0.975])
-)
-
-println("beta2:")
-println(sum(fidsamples.Beta[:, 2] .* fidsamples.Weights))
-println(
-  quantile(fidsamples.Beta[:, 2], weights(fidsamples.Weights), [0.025,0.975])
-)
+fidsamples = fidSampleLR(y, X, 5)
+=#
