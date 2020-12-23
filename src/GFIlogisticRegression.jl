@@ -1,7 +1,7 @@
 module GFIlogisticRegression
 
 import Polyhedra
-import CDDLib
+#import CDDLib
 import LinearAlgebra
 import Distributions
 import Optim
@@ -100,7 +100,7 @@ function get_umax0(P, b, init)
   upper = 1.0 .- lower
   od = Optim.OnceDifferentiable(fn, grfn!, init)
   results = Optim.optimize(
-    od, lower, upper, init, Optim.Fminbox(Optim.GradientDescent())
+    fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
   return (results.minimizer, results.minimum)
 end
@@ -135,7 +135,7 @@ function get_vmin_i(P, b, i, mu)
       storage[j] = -dlog_f(u[j], P[:, j], y)
     end
   end
-  eta = sqrt(eps())
+  eta = sqrt(eps())/3
   lower = eta * ones(d)
   upper = ones(d)
   upper[i] = mu[i]
@@ -144,7 +144,7 @@ function get_vmin_i(P, b, i, mu)
   init[i] = mu[i] / 2.0
   od = Optim.OnceDifferentiable(fn, grfn!, init)
   opt = Optim.optimize(
-    od, lower, upper, init, Optim.Fminbox(Optim.GradientDescent())
+    fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
   return -exp(-opt.minimum / (d+2))
 end
@@ -171,7 +171,7 @@ function get_vmax_i(P, b, i, mu)
       storage[j] = -dlog_f(u[j], P[:, j], y)
     end
   end
-  eta = sqrt(eps())
+  eta = sqrt(eps())/3
   lower = zeros(d)
   lower[i] = mu[i]
   lower .+= eta
@@ -180,7 +180,7 @@ function get_vmax_i(P, b, i, mu)
   init[i] = (mu[i] + 1.0) / 2.0
   od = Optim.OnceDifferentiable(fn, grfn!, init)
   opt = Optim.optimize(
-    od, lower, upper, init, Optim.Fminbox(Optim.GradientDescent())
+    fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
   return exp(-opt.minimum / (d+2))
 end
@@ -208,6 +208,9 @@ function rcd(n, P, b)
   d = size(P, 2)
   sims = Vector{Vector{Float64}}(undef, n)
   (mu, umax, vmin, vmax) = get_bounds(P, b)
+  if any(vmin .>= vmax)
+    error("vmin .>= vmax")
+  end
   k = 0
   while k < n
     u = umax * rand()
@@ -221,26 +224,8 @@ function rcd(n, P, b)
   return sims
 end
 
-#=
-function orth(A)
-  if (isempty(A))
-    retval = []
-  else
-    (U, S, V) = LinearAlgebra.svd(A)
-    (rows, cols) = size(A)
-    tol = maximum(size(A)) * S[1] * eps()
-    r = sum(S .> tol)
-    if (r > 0)
-      retval = -U[:, 1:r]
-    else
-      retval = zeros(rows, 0)
-    end
-  end
-  return (retval)
-end
-=#
-
 function fidSampleLR(y, X, N, thresh = N/2)
+  println("start")
   (n, p) = size(X)
   weight = ones(n, N)
   local WTnorm
@@ -294,7 +279,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
     qXtt = LinearAlgebra.transpose(qXt)
     for i in 1:N
       @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-      plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
+      plyhdrn = Polyhedra.polyhedron(H) #, CDDLib.Library(:exact))
       pts = collect(Polyhedra.points(plyhdrn))
       @inbounds if yK[t] == 0
         MIN = convert(
@@ -339,7 +324,7 @@ function fidSampleLR(y, X, N, thresh = N/2)
           @inbounds At_new = hcat(At_new, At[:, i])
           if ncopies > 1
             @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-            plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
+            plyhdrn = Polyhedra.polyhedron(H) #, CDDLib.Library(:exact))
             pts = collect(Polyhedra.points(plyhdrn))
             lns = collect(Polyhedra.lines(plyhdrn))
             rys = collect(Polyhedra.rays(plyhdrn))
