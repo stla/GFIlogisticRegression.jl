@@ -19,37 +19,69 @@ function expit(x) # = plogis
   return 1 / (1+exp(-x))
 end
 
-function rtlogis1(b)
-  out = logit(expit(b) * rand())
-  if out == -Inf
-    qmin = logit(1e-16)
-    if b > qmin
-      out = qmin + (b-qmin) * rand()
-    else
-      out = b
-    end
+function rtlogis1(x)
+  b = expit(b)
+  if b == 0
+    return x
   end
-  return out
+  return logit(b * rand())
 end
 
-function rtlogis2(b)
-  p = expit(b)
-  out = logit(p + (1-p) * rand())
-  if out == Inf
-    qmax = logit(1-1e-16)
-    if b < qmax
-      out = b + (qmax-b) * rand()
-    else
-      out = b
-    end
+function rtlogis2(x)
+  a = expit(x)
+  if a == 1
+    return x
   end
-  return out
+  return logit(a + (1-a) * rand())
+end
+
+function from01(u)
+  return log(u ./ (1 .- u))
+end
+
+function to01(x)
+  return 1 / (1 + exp(-x))
+end
+
+function dfrom01(u)
+  return 1 / (u * (1 - u))
 end
 
 function dlogis(x)
-  exp_x = exp(x)
-  return exp_x / (1+exp_x) / (1+exp_x)
+  expminusx = map(exp, -x)
+  oneplusexpminusx = 1 .+ expminusx
+  return expminusx ./ (oneplusexpminusx .* oneplusexpminusx)
 end
+
+function ldlogis(x)
+  return -x - 2 * map(log1p, map(exp, -x))
+end
+
+function dldlogis(x)
+  return 1 - 2 ./ (1 .+ map(exp, -x))
+end
+
+function forig(x, P, b)
+  return prod(dlogis(P * x + b))
+end
+
+function f(u, P, b)
+  return prod(dlogis(P * from01(u) + b))
+end
+
+function logf(u, P, b)
+  return sum(ldlogis(P * from01(u) + b))
+end
+
+function df(ui, Pi, y1, y2)
+  return y1 * dfrom01(ui) * sum(Pi .* y2)
+end
+
+function dlogf(ui, Pi, y2)
+  return dfrom01(ui) * sum(Pi .* y2)
+end
+
+###########################################################
 
 function dlogit(u)
   return 1.0 / (u * (1.0 - u))
