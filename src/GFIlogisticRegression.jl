@@ -7,6 +7,7 @@ import Distributions
 import Optim
 import StatsBase
 import StatsModels
+import DataFrames
 
 export summary
 export fidSampleLR
@@ -232,7 +233,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
   mf = StatsModels.ModelFrame(formula, data)
   mm = StatsModels.ModelMatrix(mf)
   X = mm.m
-  #coefnames(mf.f)
+  (_, colnames) = coefnames(mf.f)
   (n, p) = size(X)
   weight = ones(n, N)
   local WTnorm
@@ -383,20 +384,23 @@ function fidSampleLR(formula, data, N, thresh = N/2)
       end
     end
   end
-  return (Beta = Beta, Weights = WTnorm)
+  dfBeta = DataFrames.DataFrame(Beta, Symbol.(colnames))
+  return (Beta = dfBeta, Weights = WTnorm)
 end # fidSampleLR
 
 function summary(fidsamples)
-  println("beta1:")
-  println(sum(fidsamples.Beta[:, 1] .* fidsamples.Weights))
-  println(
-    StatsBase.quantile(fidsamples.Beta[:, 1], StatsBase.weights(fidsamples.Weights), [0.025,0.975])
-  )
-  println("beta2:")
-  println(sum(fidsamples.Beta[:, 2] .* fidsamples.Weights))
-  println(
-    StatsBase.quantile(fidsamples.Beta[:, 2], StatsBase.weights(fidsamples.Weights), [0.025,0.975])
-  )
+  (_, p) = size(fidsamples.Beta)
+  gdf = DataFrames.groupby(DataFrames.stack(fidsamples.Beta, 1:p), :variable)
+  wghts = fidsamples.Weights
+  function fsummary(x)
+    return (
+      mean = sum(wghts .* x),
+      median = StatsBase.quantile(x, StatsBase.weights(wghts), 0.5),
+      lwr = StatsBase.quantile(x, StatsBase.weights(wghts), 0.025),
+      upr = StatsBase.quantile(x, StatsBase.weights(wghts), 0.975)
+    )
+  end
+  return DataFrames.combine(gdf, DataFrames.valuecols(gdf) .=> fsummary)
 end
 
 end # module
