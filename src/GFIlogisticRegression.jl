@@ -6,6 +6,7 @@ import LinearAlgebra
 import Distributions
 import Optim
 import StatsBase
+import StatsModels
 
 export summary
 export fidSampleLR
@@ -225,8 +226,13 @@ function rcd(n, P, b)
   return sims
 end
 
-function fidSampleLR(y, X, N, thresh = N/2)
+function fidSampleLR(formula, data, N, thresh = N/2)
   println("start")
+  y = StatsModels.response(formula, data)
+  mf = StatsModels.ModelFrame(formula, data)
+  mm = StatsModels.ModelMatrix(mf)
+  X = mm.m
+  #coefnames(mf.f)
   (n, p) = size(X)
   weight = ones(n, N)
   local WTnorm
@@ -400,3 +406,12 @@ y = [0, 0, 1, 1, 1]
 X = [1 -2; 1 -1; 1 0; 1 1; 1 2]
 fidsamples = fidSampleLR(y, X, 5)
 =#
+
+using DataFrames, StatsModels
+data = DataFrame(
+  y = [0, 0, 1, 1, 1],
+  x = [-2, -1, 0, 1, 2]
+)
+
+fidsamples = fidSampleLR(@formula(y ~ x), data, 5)
+summary(fidsamples)
