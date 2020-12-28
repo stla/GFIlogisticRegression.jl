@@ -8,6 +8,7 @@ import Optim
 import StatsBase
 import StatsModels
 import DataFrames
+import DataFramesMeta # to use @with for confidence interval of a parameter: @with(df, :groupA - :groupB)
 
 export summary
 export fidSampleLR
@@ -400,7 +401,7 @@ function summary(fidsamples)
       upr = StatsBase.quantile(x, StatsBase.weights(wghts), 0.975)
     )
   end
-  return DataFrames.combine(gdf, DataFrames.valuecols(gdf) .=> fsummary)
+  return DataFrames.combine(gdf, DataFrames.valuecols(gdf) .=> fsummary => DataFrames.AsTable)
 end
 
 end # module
