@@ -21,7 +21,7 @@ function expit(x) # = plogis
 end
 
 function rtlogis1(x)
-  b = expit(b)
+  b = expit(x)
   if b == 0
     return x
   end
@@ -252,11 +252,11 @@ function fidSampleLR(formula, data, N, thresh = N/2)
     end
   end
   @inbounds Xstart = X[Kstart, :]
-  qXstart = convert(Array{Rational{BigInt},2}, convert(Array{Rational{BigInt},2}, Xstart))
+  qXstart = convert(Array{Rational{BigInt},2}, Xstart)
   ystart = y[Kstart]
   K = setdiff(1:n, Kstart)
   @inbounds XK = X[K, :]
-  qXK = convert(Array{Rational{BigInt},2}, convert(Array{Rational{BigInt},2}, XK))
+  qXK = convert(Array{Rational{BigInt},2}, XK)
   @inbounds yK = y[K]
   # t = 1 to p ####
   At = Array{Float64}(undef, p, N)
@@ -268,10 +268,10 @@ function fidSampleLR(formula, data, N, thresh = N/2)
     for j in 1:p
       @inbounds if ystart[j] == 0
         @inbounds C[j, :] = qXstart[j, :]
-        @inbounds c[j] = convert(Rational{BigInt}, convert(Rational{BigInt}, a[j]))
+        @inbounds c[j] = convert(Rational{BigInt}, a[j])
       else
         @inbounds C[j, :] = -qXstart[j, :]
-        @inbounds c[j] = convert(Rational{BigInt}, convert(Rational{BigInt}, -a[j]))
+        @inbounds c[j] = convert(Rational{BigInt}, -a[j])
       end
     end
     @inbounds CC[i] = C
@@ -295,7 +295,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
         atilde = rtlogis2(MIN)
         @inbounds weight[t, i] = 1 - expit(MIN)
         @inbounds CC[i] = vcat(CC[i], qXt_row)
-        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, convert(Rational{BigInt}, atilde)))
+        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, atilde))
       else
         MAX = convert(
           Float64, maximum(qXtt * hcat(pts...))
@@ -303,7 +303,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
         atilde = rtlogis1(MAX)
         @inbounds weight[t, i] = expit(MAX)
         @inbounds CC[i] = vcat(CC[i], -qXt_row)
-        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, convert(Rational{BigInt}, -atilde)))
+        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, -atilde))
       end
       @inbounds At[p+t, i] = atilde
     end
@@ -346,7 +346,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
               for k in 1:length(pts)
                 pt = convert(Vector{Float64}, pts[k])
                 VT_new[k] =
-                  convert(Vector{Rational{BigInt}}, convert(Vector{Rational{BigInt}}, pt .- M * (B .- Btilde)))
+                  convert(Vector{Rational{BigInt}}, pt .- M * (B .- Btilde))
               end
               V = Polyhedra.vrep(VT_new, lns, rys)
               plyhdrn = Polyhedra.polyhedron(V, CDDLib.Library(:exact))
