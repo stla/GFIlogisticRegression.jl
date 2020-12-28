@@ -10,7 +10,8 @@ import StatsModels
 import DataFrames
 import DataFramesMeta # to use @with for confidence interval of a parameter: @with(df, :groupA - :groupB)
 
-export summary
+export fidSummary
+export fidConfInt
 export fidSampleLR
 
 
@@ -389,7 +390,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
   return (Beta = dfBeta, Weights = WTnorm)
 end # fidSampleLR
 
-function summary(fidsamples)
+function fidSummary(fidsamples)
   (_, p) = size(fidsamples.Beta)
   gdf = DataFrames.groupby(DataFrames.stack(fidsamples.Beta, 1:p), :variable)
   wghts = fidsamples.Weights
@@ -402,6 +403,13 @@ function summary(fidsamples)
     )
   end
   return DataFrames.combine(gdf, DataFrames.valuecols(gdf) .=> fsummary => DataFrames.AsTable)
+end
+
+function fidConfInt(parameter, fidsamples, conf = 0.95)
+  x = eval(:DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter))))
+  wghts = fidsamples.Weights
+  halpha = (1.0 - conf) / 2.0
+  return StatsBase.quantile(x, StatsBase.weights(wghts), [halpha, 1.0-halpha])
 end
 
 end # module
@@ -419,4 +427,4 @@ data = DataFrame(
 )
 
 fidsamples = fidSampleLR(@formula(y ~ x), data, 5)
-summary(fidsamples)
+fidSummary(fidsamples)
