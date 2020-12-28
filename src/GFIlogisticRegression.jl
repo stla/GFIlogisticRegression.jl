@@ -406,10 +406,11 @@ function fidSummary(fidsamples)
 end
 
 function fidConfInt(parameter, fidsamples, conf = 0.95)
-  x = eval(:DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter))))
+  x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
   wghts = fidsamples.Weights
   halpha = (1.0 - conf) / 2.0
-  return StatsBase.quantile(x, StatsBase.weights(wghts), [halpha, 1.0-halpha])
+  qntls = StatsBase.quantile(x, StatsBase.weights(wghts), [halpha, 1.0-halpha])
+  return (lower = qntls[1], upper = qntls[2])
 end
 
 end # module
@@ -427,4 +428,7 @@ data = DataFrame(
 )
 
 fidsamples = fidSampleLR(@formula(y ~ x), data, 5)
+
 fidSummary(fidsamples)
+fidConfInt("map(exp, :x)", fidsamples)
+fidConfInt(":x ./ :\"(Intercept)\"", fidsamples)
