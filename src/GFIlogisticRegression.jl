@@ -36,7 +36,11 @@ function rtlogis2(x)
 end
 
 function from01(u)
-  return log(u ./ (1 .- u))
+  return map(log, u ./ (1 .- u))
+end
+
+function from01scalar(u)
+  return log(u / (1 - u))
 end
 
 function to01(x)
@@ -58,7 +62,7 @@ function ldlogis(x)
 end
 
 function dldlogis(x)
-  return 1 - 2 ./ (1 .+ map(exp, -x))
+  return 1 .- 2 ./ (1 .+ map(exp, -x))
 end
 
 function forig(x, P, b)
@@ -106,12 +110,12 @@ function get_umax(P, b)
   lower = eta * ones(d)
   upper = 1.0 .- lower
   init = 0.5 * ones(d)
-  results = Optim.optimize(
+  opt = Optim.optimize(
     fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
   return (
-    mu = results.minimizer,
-    umax = exp(-results.minimum)^(2 / (d + 2))
+    mu = from01(opt.minimizer),
+    umax = exp(-opt.minimum)^(2 / (d + 2))
   )
 end
 
@@ -119,12 +123,12 @@ function get_vmin_i(P, b, j, mu)
   d = size(P, 2)
   alpha = 1 / (d + 2)
   fn = function(u)
-    return f(u, P, b)^alpha * (from01(u[j]) - mu[j])
+    return f(u, P, b)^alpha * (from01scalar(u[j]) - mu[j])
   end
   grfn! = function(storage, u)
     y1alpha = f(u, P, b)^alpha
     y2 = dldlogis(P * from01(u) + b)
-    diff = from01(u[j]) - mu[j]
+    diff = from01scalar(u[j]) - mu[j]
     storage[j] = y1alpha * dfrom01(u[j]) *
       (alpha * sum(P[:, j] .* y2) * diff + 1)
     others = deleteat!(collect(1:d), j)
@@ -135,9 +139,9 @@ function get_vmin_i(P, b, j, mu)
   eta = sqrt(eps())
   lower = eta * ones(d)
   upper = (1-eta) * ones(d)
-  upper[j] = mu[j]
+  upper[j] = to01(mu[j])
   init = 0.5 * ones(d)
-  init[j] = mu[j] / 2.0
+  init[j] = to01(mu[j]) / 2.0
   opt = Optim.optimize(
     fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
@@ -157,12 +161,12 @@ function get_vmax_i(P, b, j, mu)
   d = size(P, 2)
   alpha = 1 / (d + 2)
   fn = function(u)
-    return -f(u, P, b)^alpha * (from01(u[j]) - mu[j])
+    return -f(u, P, b)^alpha * (from01scalar(u[j]) - mu[j])
   end
   grfn! = function(storage, u)
     y1alpha = f(u, P, b)^alpha
     y2 = dldlogis(P * from01(u) + b)
-    diff = from01(u[j]) - mu[j]
+    diff = from01scalar(u[j]) - mu[j]
     storage[j] = -y1alpha * dfrom01(u[j]) *
       (alpha * sum(P[:, j] .* y2) * diff + 1)
     others = deleteat!(collect(1:d), j)
@@ -172,10 +176,10 @@ function get_vmax_i(P, b, j, mu)
   end
   eta = sqrt(eps())
   lower = eta * ones(d)
-  lower[j] = mu[j]
+  lower[j] = to01(mu[j])
   upper = (1-eta) * ones(d)
   init = 0.5 * ones(d)
-  init[j] = (mu[j] + 1) / 2.0
+  init[j] = (to01(mu[j]) + 1) / 2.0
   opt = Optim.optimize(
     fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
@@ -213,9 +217,9 @@ function rcd(n, P, b)
     u = umax * rand()
     v = vmin + (vmax - vmin) .* rand(d)
     x = v / sqrt(u) + mu
-    if all(x .> 0) && all(x .< 1) && ((d+2) * log(u) < 2.0 * log_f(x, P, b))
+    if u < forig(x, P, b)^(2 / (d+2))
       k += 1
-      sims[k] = map(logit, x)
+      sims[k] = x
     end
   end
   return sims
