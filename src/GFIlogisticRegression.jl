@@ -83,31 +83,6 @@ end
 
 ###########################################################
 
-function dlogit(u)
-  return 1.0 / (u * (1.0 - u))
-end
-
-function ldlogit(U)
-  return map(u -> -log(u * (1.0-u)), U)
-end
-
-function ldlogis(X)
-  return X - 2.0 * map(x -> log1p(exp(x)), X)
-end
-
-function dldlogis(X)
-  return 1.0 .- 2.0 ./ (1.0 .+ map(exp, -X))
-end
-
-function log_f(u, P, b)
-  x = P * map(logit, u) + b;
-  return sum(ldlogis(x)) + sum(ldlogit(u))
-end
-
-function dlog_f(ui, Pi, y)
-  return dlogit(ui) * sum(Pi .* y) + (2.0 * ui - 1.0) / (ui * (1.0 - ui))
-end
-
 P = [
   -0.82 -0.18;
   -0.41 -0.37;
@@ -116,69 +91,57 @@ P = [
 ]
 b = [-0.50; 1.58; -1.66; 0.58]
 
-function get_umax0(P, b, init)
+function get_umax(P, b)
   d = size(P, 2)
   fn = function(u)
-    return -log_f(u, P, b)
+    return -logf(u, P, b)
   end
   grfn! = function(storage, u)
-    y = dldlogis(P * map(logit, u) .+ b)
+    y2 = dldlogis(P * from01(u) + b)
     for i in 1:d
-      storage[i] = -dlog_f(u[i], P[:, i], y)
+      storage[i] = -dlogf(u[i], P[:, i], y2)
     end
   end
   eta = sqrt(eps())
   lower = eta * ones(d)
   upper = 1.0 .- lower
-  od = Optim.OnceDifferentiable(fn, grfn!, init)
+  init = 0.5 * ones(d)
   results = Optim.optimize(
     fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
-  return (results.minimizer, results.minimum)
-end
-
-function get_umax(P, b)
-  d = size(P, 2)
-  cp = Iterators.product(ntuple(i -> [0.01, 0.5, 0.99], d)...)
-  inits = hcat(map(collect, collect(cp))...)
-  n = size(inits, 2)
-  mins = Vector{Float64}(undef, n)
-  ats = Vector{Vector{Float64}}(undef, n)
-  for i in 1:n
-    (ats[i], mins[i]) = get_umax0(P, b, inits[:, i])
-  end
-  imin = argmin(mins)
   return (
-    mu = ats[imin],
-    umax = exp(-mins[imin])^(2.0 / (2.0 + d))
+    mu = results.minimizer,
+    umax = exp(-results.minimum)^(2 / (d + 2))
   )
 end
 
-function get_vmin_i(P, b, i, mu)
+function get_vmin_i(P, b, j, mu)
   d = size(P, 2)
+  alpha = 1 / (d + 2)
   fn = function(u)
-    return -log_f(u, P, b) - (d + 2) * log(mu[i] - u[i])
+    return f(u, P, b)^alpha * (from01(u[j]) - mu[j])
   end
   grfn! = function(storage, u)
-    y = dldlogis(P * map(logit, u) .+ b)
-    storage[i] = -dlog_f(u[i], P[:, i], y) + (d+2) / (mu[i] - u[i])
-    others = deleteat!(collect(1:d), i)
-    for j in others
-      storage[j] = -dlog_f(u[j], P[:, j], y)
+    y1alpha = f(u, P, b)^alpha
+    y2 = dldlogis(P * from01(u) + b)
+    diff = from01(u[j]) - mu[j]
+    storage[j] = y1alpha * dfrom01(u[j]) *
+      (alpha * sum(P[:, j] .* y2) * diff + 1)
+    others = deleteat!(collect(1:d), j)
+    for i in others
+      storage[i] = y1alpha * dfrom01(u[i]) * alpha * sum(P[:, i] .* y2) * diff
     end
   end
-  eta = sqrt(eps())/3
+  eta = sqrt(eps())
   lower = eta * ones(d)
-  upper = ones(d)
-  upper[i] = mu[i]
-  upper .-= eta
+  upper = (1-eta) * ones(d)
+  upper[j] = mu[j]
   init = 0.5 * ones(d)
-  init[i] = mu[i] / 2.0
-  od = Optim.OnceDifferentiable(fn, grfn!, init)
+  init[j] = mu[j] / 2.0
   opt = Optim.optimize(
     fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
-  return -exp(-opt.minimum / (d+2))
+  return opt.minimum
 end
 
 function get_vmin(P, b, mu)
@@ -190,31 +153,33 @@ function get_vmin(P, b, mu)
   return vmin
 end
 
-function get_vmax_i(P, b, i, mu)
+function get_vmax_i(P, b, j, mu)
   d = size(P, 2)
+  alpha = 1 / (d + 2)
   fn = function(u)
-    return -log_f(u, P, b) - (d + 2) * log(u[i] - mu[i])
+    return -f(u, P, b)^alpha * (from01(u[j]) - mu[j])
   end
   grfn! = function(storage, u)
-    y = dldlogis(P * map(logit, u) .+ b)
-    storage[i] = -dlog_f(u[i], P[:, i], y) + (d+2) / (mu[i] - u[i])
-    others = deleteat!(collect(1:d), i)
-    for j in others
-      storage[j] = -dlog_f(u[j], P[:, j], y)
+    y1alpha = f(u, P, b)^alpha
+    y2 = dldlogis(P * from01(u) + b)
+    diff = from01(u[j]) - mu[j]
+    storage[j] = -y1alpha * dfrom01(u[j]) *
+      (alpha * sum(P[:, j] .* y2) * diff + 1)
+    others = deleteat!(collect(1:d), j)
+    for i in others
+      storage[i] = -y1alpha * dfrom01(u[i]) * alpha * sum(P[:, i] .* y2) * diff
     end
   end
-  eta = sqrt(eps())/3
-  lower = zeros(d)
-  lower[i] = mu[i]
-  lower .+= eta
-  upper = ones(d) .- eta
+  eta = sqrt(eps())
+  lower = eta * ones(d)
+  lower[j] = mu[j]
+  upper = (1-eta) * ones(d)
   init = 0.5 * ones(d)
-  init[i] = (mu[i] + 1.0) / 2.0
-  od = Optim.OnceDifferentiable(fn, grfn!, init)
+  init[j] = (mu[j] + 1) / 2.0
   opt = Optim.optimize(
     fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
-  return exp(-opt.minimum / (d+2))
+  return -opt.minimum
 end
 
 function get_vmax(P, b, mu)
