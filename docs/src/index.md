@@ -51,7 +51,7 @@ Let's go with ``5000`` fiducial simulations:
 
 ```@example 1
 using StatsModels, GFIlogisticRegression
-fidsamples = fidSampleLR(@formula(y ~ x), data, 5000)
+fidsamples = fidSampleLR(@formula(y ~ x), data, 20000)
 ```
 
 Here are the fiducial estimates and ``95\%``-confidence intervals of the 
@@ -65,7 +65,7 @@ Now let us draw the fiducial ``95\%``-confidence interval about our parameter of
 interest ``\mu``:
 
 ```@example 1
-fidConfInt("-:x ./ :\"(Intercept)\"", fidsamples, 0.95)
+fidConfInt("-:\"(Intercept)\" ./ :x", fidsamples, 0.95)
 ```
 
 

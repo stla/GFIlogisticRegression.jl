@@ -461,10 +461,10 @@ the example
     fidConfInt(":\\\"group: A\\\" - :\\\"group: B\\\"", fidsamples, 0.95)
 """
 function fidConfInt(parameter, fidsamples, conf = 0.95)
-  x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
+  x = eval(:(DataFramesMeta.@with($(fidsamples.Beta), $(Meta.parse(parameter)))))
   wghts = fidsamples.Weights
   halpha = (1.0 - conf) / 2.0
-  qntls = StatsBase.quantile(x, StatsBase.weights(wghts), [halpha, 1.0-halpha])
+  qntls = StatsBase.quantile(x, StatsBase.weights(wghts), [halpha; 1.0-halpha])
   return (lower = qntls[1], upper = qntls[2])
 end
 
@@ -490,7 +490,7 @@ the example
     fidQuantile(":\\\"group: A\\\" ./ :\\\"group: B\\\"", fidsamples, 0.5)
 """
 function fidQuantile(parameter, fidsamples, p)
-  x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
+  x = eval(:(DataFramesMeta.@with($(fidsamples.Beta), $(Meta.parse(parameter)))))
   wghts = fidsamples.Weights
   return StatsBase.quantile(x, StatsBase.weights(wghts), p)
 end
@@ -517,7 +517,7 @@ the example
     fidProb("map(exp, :x)", fidsamples, 1) # this is Pr(exp(x) <= 1)
 """
 function fidProb(parameter, fidsamples, q)
-  x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
+  x = eval(:(DataFramesMeta.@with($(fidsamples.Beta), $(Meta.parse(parameter)))))
   wghts = fidsamples.Weights
   return sum(wghts[findall(x .<= q)])
 end
