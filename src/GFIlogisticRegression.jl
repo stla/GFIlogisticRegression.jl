@@ -231,8 +231,7 @@ Fiducial sampling of the parameters of the logistic regression model.
 - `data`: data frame in which the variables of the model can be found
 - `N`: number of simulations
 - `gmp`: whether to use exact arithmetic in the algorithm
-- `thresh`: the threshold used in the sequential sampler; the default `N/2`
-should not be changed
+- `thresh`: the threshold used in the sequential sampler; the default `N/2` should not be changed
 
 # Example
 
@@ -445,8 +444,7 @@ end
 Fiducial confidence interval of a parameter of interest.
 
 # Arguments
-- `parameter`: an expression of the parameter of interest given as a string; see
-the example
+- `parameter`: an expression of the parameter of interest given as a string; see the example
 - `fidsamples`: an output of `fidSampleLR`
 - `conf`: confidence level
 
@@ -474,8 +472,7 @@ end
 Fiducial quantile of a parameter of interest.
 
 # Arguments
-- `parameter`: an expression of the parameter of interest given as a string; see
-the example
+- `parameter`: an expression of the parameter of interest given as a string; see the example
 - `fidsamples`: an output of `fidSampleLR`
 - `p`: quantile level, between 0 and 1
 
@@ -501,8 +498,7 @@ end
 Fiducial non-exceedance probability of a parameter of interest.
 
 # Arguments
-- `parameter`: an expression of the parameter of interest given as a string; see
-the example
+- `parameter`: an expression of the parameter of interest given as a string; see the example
 - `fidsamples`: fiducial simulations, an output of `fidSampleLR`
 - `q`: the non-exceedance threshold
 
