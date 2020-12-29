@@ -232,7 +232,7 @@ function rcd(n, P, b)
 end
 
 """
-    fidSampleLR(formula, data, N[, thresh])
+    fidSampleLR(formula, data, N[, gmp][, thresh])
 
 Fiducial sampling of the parameters of the logistic regression model.
 
@@ -240,6 +240,7 @@ Fiducial sampling of the parameters of the logistic regression model.
 - `formula`: a formula describing the model
 - `data`: data frame in which the variables of the model can be found
 - `N`: number of simulations
+- `gmp`: whether to use exact arithmetic in the algorithm
 - `thresh`: the threshold used in the sequential sampler; the default `N/2`
 should not be changed
 
@@ -252,8 +253,7 @@ should not be changed
     )
     fidsamples = fidSampleLR(@formula(y ~ x), data, 3000)
 """
-function fidSampleLR(formula, data, N, thresh = N/2)
-  println("start")
+function fidSampleLR(formula, data, N, gmp = false, thresh = N/2)
   y = StatsModels.response(formula, data)
   mf = StatsModels.ModelFrame(formula, data)
   mm = StatsModels.ModelMatrix(mf)
@@ -263,8 +263,10 @@ function fidSampleLR(formula, data, N, thresh = N/2)
   weight = ones(n, N)
   local WTnorm
   ESS = N .* ones(n)
-  CC = Vector{Array{Rational{BigInt},2}}(undef, N)
-  cc = Vector{Vector{Rational{BigInt}}}(undef, N)
+  T = gmp ? Rational{BigInt} : Float64
+  cdd = gmp ? :exact : :float
+  CC = Vector{Array{T,2}}(undef, N)
+  cc = Vector{Vector{T}}(undef, N)
   # Kstart ####
   Kstart = [1]
   i = 1
@@ -278,26 +280,26 @@ function fidSampleLR(formula, data, N, thresh = N/2)
     end
   end
   @inbounds Xstart = X[Kstart, :]
-  qXstart = convert(Array{Rational{BigInt},2}, Xstart)
+  qXstart = convert(Array{T,2}, Xstart)
   ystart = y[Kstart]
   K = setdiff(1:n, Kstart)
   @inbounds XK = X[K, :]
-  qXK = convert(Array{Rational{BigInt},2}, XK)
+  qXK = convert(Array{T,2}, XK)
   @inbounds yK = y[K]
   # t = 1 to p ####
   At = Array{Float64}(undef, p, N)
   for i in 1:N
     a = map(logit, rand(p))
     @inbounds At[:, i] = a
-    C = Array{Rational{BigInt},2}(undef, p, p)
-    c = Vector{Rational{BigInt}}(undef, p)
+    C = Array{T,2}(undef, p, p)
+    c = Vector{T}(undef, p)
     for j in 1:p
       @inbounds if ystart[j] == 0
         @inbounds C[j, :] = qXstart[j, :]
-        @inbounds c[j] = convert(Rational{BigInt}, a[j])
+        @inbounds c[j] = convert(T, a[j])
       else
         @inbounds C[j, :] = -qXstart[j, :]
-        @inbounds c[j] = convert(Rational{BigInt}, -a[j])
+        @inbounds c[j] = convert(T, -a[j])
       end
     end
     @inbounds CC[i] = C
@@ -312,7 +314,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
     qXtt = LinearAlgebra.transpose(qXt)
     for i in 1:N
       @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-      plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
+      plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(cdd))
       pts = collect(Polyhedra.points(plyhdrn))
       @inbounds if yK[t] == 0
         MIN = convert(
@@ -321,7 +323,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
         atilde = rtlogis2(MIN)
         @inbounds weight[t, i] = 1 - expit(MIN)
         @inbounds CC[i] = vcat(CC[i], qXt_row)
-        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, atilde))
+        @inbounds cc[i] = vcat(cc[i], convert(T, atilde))
       else
         MAX = convert(
           Float64, maximum(qXtt * hcat(pts...))
@@ -329,7 +331,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
         atilde = rtlogis1(MAX)
         @inbounds weight[t, i] = expit(MAX)
         @inbounds CC[i] = vcat(CC[i], -qXt_row)
-        @inbounds cc[i] = vcat(cc[i], convert(Rational{BigInt}, -atilde))
+        @inbounds cc[i] = vcat(cc[i], convert(T, -atilde))
       end
       @inbounds At[p+t, i] = atilde
     end
@@ -347,8 +349,8 @@ function fidSampleLR(formula, data, N, thresh = N/2)
       Pt = LinearAlgebra.transpose(P)
       QQt = LinearAlgebra.I - P*Pt
       M = inv(LinearAlgebra.transpose(D)*D) * LinearAlgebra.transpose(D) * P
-      CCtemp = Vector{Array{Rational{BigInt},2}}(undef, N)
-      cctemp = Vector{Vector{Rational{BigInt}}}(undef, N)
+      CCtemp = Vector{Array{T,2}}(undef, N)
+      cctemp = Vector{Vector{T}}(undef, N)
       for i in 1:N
         @inbounds ncopies = Nsons[i]
         if ncopies >= 1
@@ -357,7 +359,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
           @inbounds At_new = hcat(At_new, At[:, i])
           if ncopies > 1
             @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-            plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
+            plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(cdd))
             pts = collect(Polyhedra.points(plyhdrn))
             lns = collect(Polyhedra.lines(plyhdrn))
             rys = collect(Polyhedra.rays(plyhdrn))
@@ -365,21 +367,21 @@ function fidSampleLR(formula, data, N, thresh = N/2)
             @inbounds B = Pt * At[:, i]
             BTILDES = rcd(ncopies-1, P, b)
             for j in 2:ncopies
-              VT_new = Vector{Vector{Rational{BigInt}}}(undef, length(pts))
+              VT_new = Vector{Vector{T}}(undef, length(pts))
               @inbounds Btilde = BTILDES[j-1]
               At_tilde = P * Btilde .+ b
               At_new = hcat(At_new, At_tilde)
               for k in 1:length(pts)
                 pt = convert(Vector{Float64}, pts[k])
                 VT_new[k] =
-                  convert(Vector{Rational{BigInt}}, pt .- M * (B .- Btilde))
+                  convert(Vector{T}, pt .- M * (B .- Btilde))
               end
               V = Polyhedra.vrep(VT_new, lns, rys)
-              plyhdrn = Polyhedra.polyhedron(V, CDDLib.Library(:exact))
+              plyhdrn = Polyhedra.polyhedron(V, CDDLib.Library(cdd))
               #HlfSpcs = Polyhedra.hrep(plyhdrn).halfspaces
               #A = map(x -> x.a, HlfSpcs)
               H = Polyhedra.hrep(plyhdrn)
-              Hmat = convert(Array{Rational{BigInt},2}, CDDLib.extractA(unsafe_load(H.matrix)))
+              Hmat = convert(Array{T,2}, CDDLib.extractA(unsafe_load(H.matrix)))
               @inbounds CCtemp[counter + j - 1] = -Hmat[:, 2:end] #LinearAlgebra.transpose(hcat(A...))
               @inbounds cctemp[counter + j - 1] = Hmat[:, 1]#map(x -> x.β, HlfSpcs)
             end
@@ -398,14 +400,15 @@ function fidSampleLR(formula, data, N, thresh = N/2)
   Beta = Array{Float64, 2}(undef, N, p)
   for i in 1:N
     @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-    plyhdr = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
+    plyhdr = Polyhedra.polyhedron(H, CDDLib.Library(cdd))
     vertices = collect(Polyhedra.points(plyhdr))
     pts = hcat(vertices...)
     for j in 1:p
+      pt = convert(Vector{Float64}, pts[j, :])
       if rand() < 0.5
-        @inbounds Beta[i, j] = minimum(pts[j, :])
+        @inbounds Beta[i, j] = minimum(pt)
       else
-        @inbounds Beta[i, j] = maximum(pts[j, :])
+        @inbounds Beta[i, j] = maximum(pt)
       end
     end
   end
