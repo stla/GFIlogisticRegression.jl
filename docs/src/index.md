@@ -58,7 +58,7 @@ Here are the fiducial estimates and ``95\%``-confidence intervals of the
 parameters ``\beta_0`` and ``\beta_1``:
 
 ```@example 1
-fidSummary(fidsamples)
+print(fidSummary(fidsamples))
 ```
 
 Now let us draw the fiducial ``95\%``-confidence interval about our parameter of 
