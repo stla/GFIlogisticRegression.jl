@@ -301,6 +301,37 @@ function fidSampleLR(formula, data, N, gmp = false, thresh = N/2)
     @inbounds qXt = qXK[t, :]
     qXt_row = reshape(qXt, 1, :)
     qXtt = LinearAlgebra.transpose(qXt)
+
+    @inbounds if yK[t] == 0
+      for i in 1:N
+        @inbounds H = Polyhedra.hrep(CC[i], cc[i])
+        plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(cdd))
+        pts = collect(Polyhedra.points(plyhdrn))
+        MIN = convert(
+          Float64, minimum(qXtt * hcat(pts...))
+        )
+        atilde = rtlogis2(MIN)
+        @inbounds weight[t, i] = 1 - expit(MIN)
+        @inbounds CC[i] = vcat(CC[i], qXt_row)
+        @inbounds cc[i] = vcat(cc[i], convert(T, atilde))
+        @inbounds At[p+t, i] = atilde
+      end
+    else
+      for i in 1:N
+        @inbounds H = Polyhedra.hrep(CC[i], cc[i])
+        plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(cdd))
+        pts = collect(Polyhedra.points(plyhdrn))
+        MAX = convert(
+          Float64, maximum(qXtt * hcat(pts...))
+        )
+        atilde = rtlogis1(MAX)
+        @inbounds weight[t, i] = expit(MAX)
+        @inbounds CC[i] = vcat(CC[i], -qXt_row)
+        @inbounds cc[i] = vcat(cc[i], convert(T, -atilde))
+        @inbounds At[p+t, i] = atilde
+      end
+    end
+    #=
     for i in 1:N
       @inbounds H = Polyhedra.hrep(CC[i], cc[i])
       plyhdrn = Polyhedra.polyhedron(H, CDDLib.Library(cdd))
@@ -324,6 +355,7 @@ function fidSampleLR(formula, data, N, gmp = false, thresh = N/2)
       end
       @inbounds At[p+t, i] = atilde
     end
+    =#
     WT = prod(weight; dims = 1)[1, :]
     WTnorm = WT ./ sum(WT)
     @inbounds ESS[p+t] = 1.0 / sum(WTnorm .* WTnorm)
