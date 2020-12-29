@@ -231,6 +231,27 @@ function rcd(n, P, b)
   return sims
 end
 
+"""
+    fidSampleLR(formula, data, N[, thresh])
+
+Fiducial sampling of the parameters of the logistic regression model.
+
+# Arguments
+- `formula`: a formula describing the model
+- `data`: data frame in which the variables of the model can be found
+- `N`: number of simulations
+- `thresh`: the threshold used in the sequential sampler; the default `N/2`
+should not be changed
+
+# Example
+
+    using GFIlogisticRegression, DataFrames, StatsModels
+    data = DataFrame(
+      y = [0, 0, 1, 1, 1],
+      x = [-2, -1, 0, 1, 2]
+    )
+    fidsamples = fidSampleLR(@formula(y ~ x), data, 3000)
+"""
 function fidSampleLR(formula, data, N, thresh = N/2)
   println("start")
   y = StatsModels.response(formula, data)
@@ -392,6 +413,24 @@ function fidSampleLR(formula, data, N, thresh = N/2)
   return (Beta = dfBeta, Weights = WTnorm)
 end # fidSampleLR
 
+"""
+    fidSummary(fidsamples)
+
+Summary of the fiducial simulations.
+
+# Argument
+- `fidsamples`: an output of `fidSampleLR`
+
+# Example
+
+    using GFIlogisticRegression, DataFrames, StatsModels
+    data = DataFrame(
+      y = [0, 0, 1, 1, 1],
+      x = [-2, -1, 0, 1, 2]
+    )
+    fidsamples = fidSampleLR(@formula(y ~ x), data, 3000)
+    fidSummary(fidsamples)
+"""
 function fidSummary(fidsamples)
   (_, p) = size(fidsamples.Beta)
   gdf = DataFrames.groupby(DataFrames.stack(fidsamples.Beta, 1:p), :variable)
@@ -407,6 +446,27 @@ function fidSummary(fidsamples)
   return DataFrames.combine(gdf, DataFrames.valuecols(gdf) .=> fsummary => DataFrames.AsTable)
 end
 
+"""
+    fidConfInt(parameter, fidsamples, conf)
+
+Fiducial confidence interval of a parameter of interest.
+
+# Arguments
+- `parameter`: an expression of the parameter of interest given as a string; see
+the example
+- `fidsamples`: an output of `fidSampleLR`
+- `conf`: confidence level
+
+# Example
+
+    using GFIlogisticRegression, DataFrames, StatsModels
+    data = DataFrame(
+      y = [0, 0, 1, 1, 1, 1],
+      group = ["A", "A", "A", "B", "B", "B"]
+    )
+    fidsamples = fidSampleLR(@formula(y ~ 0 + group), data, 3000)
+    fidConfInt(":groupA - :groupB", fidsamples, 0.95)
+"""
 function fidConfInt(parameter, fidsamples, conf = 0.95)
   x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
   wghts = fidsamples.Weights
@@ -440,11 +500,8 @@ data = DataFrame(
   y = [0, 0, 1, 1, 1],
   x = [-2, -1, 0, 1, 2]
 )
-
 fidsamples = fidSampleLR(@formula(y ~ x), data, 5)
 
 fidSummary(fidsamples)
 fidConfInt("map(exp, :x)", fidsamples)
 fidConfInt(":x ./ :\"(Intercept)\"", fidsamples)
-
-#TODO: fidProb
