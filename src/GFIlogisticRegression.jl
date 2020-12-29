@@ -91,16 +91,6 @@ function dlogf(ui, Pi, y2)
   return dfrom01(ui) * sum(Pi .* y2)
 end
 
-###########################################################
-
-P = [
-  -0.82 -0.18;
-  -0.41 -0.37;
-  0.0   -0.55;
-  0.41  -0.73
-]
-b = [-0.50; 1.58; -1.66; 0.58]
-
 function get_umax(P, b)
   d = size(P, 2)
   fn = function(u)
@@ -535,11 +525,22 @@ end
 end # module
 
 #=
+P = [
+  -0.82 -0.18;
+  -0.41 -0.37;
+  0.0   -0.55;
+  0.41  -0.73
+]
+b = [-0.50; 1.58; -1.66; 0.58]
+=#
+
+#=
 y = [0, 0, 1, 1, 1]
 X = [1 -2; 1 -1; 1 0; 1 1; 1 2]
 fidsamples = fidSampleLR(y, X, 5)
 =#
 
+#=
 using DataFrames, StatsModels
 data = DataFrame(
   y = [0, 0, 1, 1, 1],
@@ -550,11 +551,13 @@ fidsamples = fidSampleLR(@formula(y ~ x), data, 5)
 fidSummary(fidsamples)
 fidConfInt("map(exp, :x)", fidsamples)
 fidConfInt(":x ./ :\"(Intercept)\"", fidsamples)
+=#
 
-
+#=
 data = DataFrame(
   y = [0, 0, 1, 1, 1, 1],
   group = ["A", "A", "A", "B", "B", "B"]
 )
 fidsamples = fidSampleLR(@formula(y ~ 0 + group), data, 3000)
 fidConfInt(":\"group: A\" - :\"group: B\"", fidsamples, 0.95)
+=#
