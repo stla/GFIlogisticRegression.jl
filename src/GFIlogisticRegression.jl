@@ -398,7 +398,7 @@ function fidSampleLR(formula, data, N, thresh = N/2)
   Beta = Array{Float64, 2}(undef, N, p)
   for i in 1:N
     @inbounds H = Polyhedra.hrep(CC[i], cc[i])
-    plyhdr = Polyhedra.polyhedron(H)
+    plyhdr = Polyhedra.polyhedron(H, CDDLib.Library(:exact))
     vertices = collect(Polyhedra.points(plyhdr))
     pts = hcat(vertices...)
     for j in 1:p
@@ -465,7 +465,7 @@ the example
       group = ["A", "A", "A", "B", "B", "B"]
     )
     fidsamples = fidSampleLR(@formula(y ~ 0 + group), data, 3000)
-    fidConfInt(":groupA - :groupB", fidsamples, 0.95)
+    fidConfInt(":\"group: A\" - :\"group: B\"", fidsamples, 0.95)
 """
 function fidConfInt(parameter, fidsamples, conf = 0.95)
   x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
@@ -475,12 +475,54 @@ function fidConfInt(parameter, fidsamples, conf = 0.95)
   return (lower = qntls[1], upper = qntls[2])
 end
 
+"""
+    fidQuantile(parameter, fidsamples, p)
+
+Fiducial quantile of a parameter of interest.
+
+# Arguments
+- `parameter`: an expression of the parameter of interest given as a string; see
+the example
+- `fidsamples`: an output of `fidSampleLR`
+- `p`: quantile level, between 0 and 1
+
+# Example
+
+    using GFIlogisticRegression, DataFrames, StatsModels
+    data = DataFrame(
+      y = [0, 0, 1, 1, 1, 1],
+      group = ["A", "A", "A", "B", "B", "B"]
+    )
+    fidsamples = fidSampleLR(@formula(y ~ 0 + group), data, 3000)
+    fidQuantile(":\"group: A\" ./ :\"group: B\"", fidsamples, 0.5)
+"""
 function fidQuantile(parameter, fidsamples, p)
   x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
   wghts = fidsamples.Weights
   return StatsBase.quantile(x, StatsBase.weights(wghts), p)
 end
 
+"""
+    fidProb(parameter, fidsamples, q)
+
+Fiducial non-exceedance probability of a parameter of interest.
+
+# Arguments
+- `parameter`: an expression of the parameter of interest given as a string; see
+the example
+- `fidsamples`: fiducial simulations, an output of `fidSampleLR`
+- `q`: the non-exceedance threshold
+
+# Example
+
+    using GFIlogisticRegression, DataFrames, StatsModels
+    data = DataFrame(
+      y = [0, 0, 1, 1, 1],
+      x = [-2, -1, 0, 1, 2]
+    )
+    fidsamples = fidSampleLR(@formula(y ~ x), data, 3000)
+    fidProb("map(exp, :x)", fidsamples, 1) # this is Pr(exp(x) <= 1)
+"""
 function fidProb(parameter, fidsamples, q)
   x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
   wghts = fidsamples.Weights
@@ -505,3 +547,11 @@ fidsamples = fidSampleLR(@formula(y ~ x), data, 5)
 fidSummary(fidsamples)
 fidConfInt("map(exp, :x)", fidsamples)
 fidConfInt(":x ./ :\"(Intercept)\"", fidsamples)
+
+
+data = DataFrame(
+  y = [0, 0, 1, 1, 1, 1],
+  group = ["A", "A", "A", "B", "B", "B"]
+)
+fidsamples = fidSampleLR(@formula(y ~ 0 + group), data, 3000)
+fidConfInt(":\"group: A\" - :\"group: B\"", fidsamples, 0.95)
