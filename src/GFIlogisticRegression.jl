@@ -297,7 +297,7 @@ function fidSampleLR(formula, data, N, gmp = false, thresh = N/2)
   end
   # t from p+1 to n ####
   for t in 1:(n-p)
-    println(t)
+    #println(t)
     At = vcat(At, Array{Float64,2}(undef, 1, N))
     @inbounds qXt = qXK[t, :]
     qXt_row = reshape(qXt, 1, :)
@@ -329,7 +329,7 @@ function fidSampleLR(formula, data, N, gmp = false, thresh = N/2)
     WTnorm = WT ./ sum(WT)
     @inbounds ESS[p+t] = 1.0 / sum(WTnorm .* WTnorm)
     @inbounds if ESS[p+t] < thresh || t == n-p
-      println("alteration...")
+      #println("alteration...")
       Nsons = rand(Distributions.Multinomial(N, WTnorm))
       counter = 1
       At_new = Array{Float64, 2}(undef, p+t, 0)
