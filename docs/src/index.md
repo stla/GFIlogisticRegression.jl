@@ -47,7 +47,7 @@ data = DataFrame(
 )
 ```
 
-Let's go with ``5000`` fiducial simulations: 
+Let's go with ``20000`` fiducial simulations: 
 
 ```@example 1
 using StatsModels, GFIlogisticRegression
