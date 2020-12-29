@@ -12,6 +12,8 @@ import DataFramesMeta # to use @with for confidence interval of a parameter: @wi
 
 export fidSummary
 export fidConfInt
+export fidQuantile
+export fidProb
 export fidSampleLR
 
 
@@ -413,6 +415,18 @@ function fidConfInt(parameter, fidsamples, conf = 0.95)
   return (lower = qntls[1], upper = qntls[2])
 end
 
+function fidQuantile(parameter, fidsamples, p)
+  x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
+  wghts = fidsamples.Weights
+  return StatsBase.quantile(x, StatsBase.weights(wghts), p)
+end
+
+function fidProb(parameter, fidsamples, q)
+  x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
+  wghts = fidsamples.Weights
+  return sum(wghts[findall(x .<= q)])
+end
+
 end # module
 
 #=
@@ -432,3 +446,5 @@ fidsamples = fidSampleLR(@formula(y ~ x), data, 5)
 fidSummary(fidsamples)
 fidConfInt("map(exp, :x)", fidsamples)
 fidConfInt(":x ./ :\"(Intercept)\"", fidsamples)
+
+#TODO: fidProb
