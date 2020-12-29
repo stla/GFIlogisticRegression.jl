@@ -248,7 +248,7 @@ function fidSampleLR(formula, data, N, gmp = false, thresh = N/2)
   mf = StatsModels.ModelFrame(formula, data)
   mm = StatsModels.ModelMatrix(mf)
   X = mm.m
-  (_, colnames) = coefnames(mf.f)
+  (_, colnames) = StatsModels.coefnames(mf.f)
   (n, p) = size(X)
   weight = ones(n, N)
   local WTnorm
