@@ -458,7 +458,7 @@ the example
       group = ["A", "A", "A", "B", "B", "B"]
     )
     fidsamples = fidSampleLR(@formula(y ~ 0 + group), data, 3000)
-    fidConfInt(":\"group: A\" - :\"group: B\"", fidsamples, 0.95)
+    fidConfInt(":\\\"group: A\\\" - :\\\"group: B\\\"", fidsamples, 0.95)
 """
 function fidConfInt(parameter, fidsamples, conf = 0.95)
   x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
@@ -487,7 +487,7 @@ the example
       group = ["A", "A", "A", "B", "B", "B"]
     )
     fidsamples = fidSampleLR(@formula(y ~ 0 + group), data, 3000)
-    fidQuantile(":\"group: A\" ./ :\"group: B\"", fidsamples, 0.5)
+    fidQuantile(":\\\"group: A\\\" ./ :\\\"group: B\\\"", fidsamples, 0.5)
 """
 function fidQuantile(parameter, fidsamples, p)
   x = eval(:(DataFramesMeta.@with(fidsamples.Beta, $(Meta.parse(parameter)))))
