@@ -8,7 +8,7 @@ import Optim
 import StatsBase
 import StatsModels
 import DataFrames
-import DataFramesMeta # to use @with for confidence interval of a parameter: @with(df, :groupA - :groupB)
+import DataFramesMeta 
 
 export fidSummary
 export fidConfInt
@@ -18,16 +18,16 @@ export fidSampleLR
 
 
 function logit(u) # = qlogis
-  return log(u / (1-u))
+  return log(u / (1.0 - u))
 end
 
 function expit(x) # = plogis
-  return 1 / (1+exp(-x))
+  return 1.0 / (1.0 + exp(-x))
 end
 
 function rtlogis1(x)
   b = expit(x)
-  if b == 0
+  if b == 0.0
     return x
   end
   return logit(b * rand())
@@ -35,40 +35,40 @@ end
 
 function rtlogis2(x)
   a = expit(x)
-  if a == 1
+  if a == 1.0
     return x
   end
-  return logit(a + (1-a) * rand())
+  return logit(a + (1.0-a) * rand())
 end
 
 function from01(u)
-  return map(log, u ./ (1 .- u))
+  return map(log, u ./ (1.0 .- u))
 end
 
 function from01scalar(u)
-  return log(u / (1 - u))
+  return log(u / (1.0 - u))
 end
 
 function to01(x)
-  return 1 / (1 + exp(-x))
+  return 1.0 / (1.0 + exp(-x))
 end
 
 function dfrom01(u)
-  return 1 / (u * (1 - u))
+  return 1.0 / (u * (1.0 - u))
 end
 
 function dlogis(x)
   expminusx = map(exp, -x)
-  oneplusexpminusx = 1 .+ expminusx
+  oneplusexpminusx = 1.0 .+ expminusx
   return expminusx ./ (oneplusexpminusx .* oneplusexpminusx)
 end
 
 function ldlogis(x)
-  return -x - 2 * map(log1p, map(exp, -x))
+  return -x - 2.0 * map(log1p, map(exp, -x))
 end
 
 function dldlogis(x)
-  return 1 .- 2 ./ (1 .+ map(exp, -x))
+  return 1.0 .- 2.0 ./ (1.0 .+ map(exp, -x))
 end
 
 function forig(x, P, b)
@@ -102,8 +102,7 @@ function get_umax(P, b)
       storage[i] = -dlogf(u[i], P[:, i], y2)
     end
   end
-  eta = sqrt(eps())
-  lower = eta * ones(d)
+  lower = sqrt(eps()) * ones(d)
   upper = 1.0 .- lower
   init = 0.5 * ones(d)
   opt = Optim.optimize(
@@ -111,13 +110,13 @@ function get_umax(P, b)
   )
   return (
     mu = from01(opt.minimizer),
-    umax = exp(-opt.minimum)^(2 / (d + 2))
+    umax = exp(-opt.minimum)^(2.0 / (d + 2))
   )
 end
 
 function get_vmin_i(P, b, j, mu)
   d = size(P, 2)
-  alpha = 1 / (d + 2)
+  alpha = 1.0 / (d + 2)
   fn = function(u)
     return f(u, P, b)^alpha * (from01scalar(u[j]) - mu[j])
   end
@@ -126,7 +125,7 @@ function get_vmin_i(P, b, j, mu)
     y2 = dldlogis(P * from01(u) + b)
     diff = from01scalar(u[j]) - mu[j]
     storage[j] = y1alpha * dfrom01(u[j]) *
-      (alpha * sum(P[:, j] .* y2) * diff + 1)
+      (alpha * sum(P[:, j] .* y2) * diff + 1.0)
     others = deleteat!(collect(1:d), j)
     for i in others
       storage[i] = y1alpha * dfrom01(u[i]) * alpha * sum(P[:, i] .* y2) * diff
@@ -134,7 +133,7 @@ function get_vmin_i(P, b, j, mu)
   end
   eta = sqrt(eps())
   lower = eta * ones(d)
-  upper = (1-eta) * ones(d)
+  upper = (1.0-eta) * ones(d)
   upper[j] = to01(mu[j])
   init = 0.5 * ones(d)
   init[j] = to01(mu[j]) / 2.0
@@ -155,7 +154,7 @@ end
 
 function get_vmax_i(P, b, j, mu)
   d = size(P, 2)
-  alpha = 1 / (d + 2)
+  alpha = 1.0 / (d + 2)
   fn = function(u)
     return -f(u, P, b)^alpha * (from01scalar(u[j]) - mu[j])
   end
@@ -164,7 +163,7 @@ function get_vmax_i(P, b, j, mu)
     y2 = dldlogis(P * from01(u) + b)
     diff = from01scalar(u[j]) - mu[j]
     storage[j] = -y1alpha * dfrom01(u[j]) *
-      (alpha * sum(P[:, j] .* y2) * diff + 1)
+      (alpha * sum(P[:, j] .* y2) * diff + 1.0)
     others = deleteat!(collect(1:d), j)
     for i in others
       storage[i] = -y1alpha * dfrom01(u[i]) * alpha * sum(P[:, i] .* y2) * diff
@@ -173,9 +172,9 @@ function get_vmax_i(P, b, j, mu)
   eta = sqrt(eps())
   lower = eta * ones(d)
   lower[j] = to01(mu[j])
-  upper = (1-eta) * ones(d)
+  upper = (1.0-eta) * ones(d)
   init = 0.5 * ones(d)
-  init[j] = (to01(mu[j]) + 1) / 2.0
+  init[j] = (to01(mu[j]) + 1.0) / 2.0
   opt = Optim.optimize(
     fn, grfn!, lower, upper, init, Optim.Fminbox(Optim.LBFGS())
   )
@@ -208,12 +207,13 @@ function rcd(n, P, b)
   if any(vmin .>= vmax)
     error("vmin .>= vmax")
   end
+  alpha = 2.0 / (d+2)
   k = 0
   while k < n
     u = umax * rand()
     v = vmin + (vmax - vmin) .* rand(d)
     x = v / sqrt(u) + mu
-    if u < forig(x, P, b)^(2 / (d+2))
+    if u < forig(x, P, b)^alpha
       k += 1
       sims[k] = x
     end
@@ -301,7 +301,6 @@ function fidSampleLR(formula, data, N, gmp = false, thresh = N/2)
     @inbounds qXt = qXK[t, :]
     qXt_row = reshape(qXt, 1, :)
     qXtt = LinearAlgebra.transpose(qXt)
-
     @inbounds if yK[t] == 0
       for i in 1:N
         @inbounds H = Polyhedra.hrep(CC[i], cc[i])
